@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Bus CRUD Operations</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { color: green; }
+        .error { color: red; }
+        .info { color: blue; }
+        button { margin: 5px; padding: 10px 15px; }
+        pre { background: #f5f5f5; padding: 10px; border-radius: 3px; overflow-x: auto; }
+        .status { font-weight: bold; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <h1>🚌 Bus CRUD Operations Test</h1>
+    <p>This page tests all bus operations and verifies they persist in Supabase.</p>
+    
+    <div class="test-section">
+        <h2>Environment Check</h2>
+        <div id="env-status"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>1. Test Add Bus</h2>
+        <button onclick="testAddBus()">Add Test Bus</button>
+        <div id="add-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>2. Test Read Buses</h2>
+        <button onclick="testReadBuses()">Read All Buses</button>
+        <div id="read-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>3. Test Update Bus</h2>
+        <button onclick="testUpdateBus()">Update Last Bus</button>
+        <div id="update-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>4. Test Delete Bus</h2>
+        <button onclick="testDeleteBus()">Delete Test Bus</button>
+        <div id="delete-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>5. Verify Persistence</h2>
+        <button onclick="verifyPersistence()">Check Supabase Data</button>
+        <div id="verify-result"></div>
+    </div>
+
+    <script type="module">
+        import { createClient } from 'https://cdn.skypack.dev/@supabase/supabase-js'
+        
+        // Get environment variables
+        const supabaseUrl = 'https://your-project.supabase.co' // Replace with your URL
+        const supabaseKey = 'your-anon-key' // Replace with your anon key
+        
+        let supabase;
+        let testBusId = null;
+
+        // Initialize Supabase
+        function initSupabase() {
+            try {
+                // Try to get from environment or use defaults
+                const url = window.location.origin.includes('localhost') 
+                    ? process?.env?.NEXT_PUBLIC_SUPABASE_URL || supabaseUrl
+                    : supabaseUrl;
+                const key = window.location.origin.includes('localhost')
+                    ? process?.env?.NEXT_PUBLIC_SUPABASE_ANON_KEY || supabaseKey
+                    : supabaseKey;
+                
+                supabase = createClient(url, key);
+                
+                document.getElementById('env-status').innerHTML = `
+                    <div class="success">✅ Supabase client initialized</div>
+                    <div class="info">URL: ${url.substring(0, 30)}...</div>
+                    <div class="info">Key: ${key.substring(0, 20)}...</div>
+                `;
+            } catch (error) {
+                document.getElementById('env-status').innerHTML = `
+                    <div class="error">❌ Failed to initialize Supabase: ${error.message}</div>
+                    <div class="info">Please update the URL and key in this file</div>
+                `;
+            }
+        }
+
+        // Test functions
+        window.testAddBus = async function() {
+            const resultDiv = document.getElementById('add-result');
+            resultDiv.innerHTML = '<div class="info">🔄 Adding test bus...</div>';
+            
+            try {
+                const testBus = {
+                    route_number: `TEST-${Date.now()}`,
+                    bus_number: `Test Bus ${Date.now()}`,
+                    current_location: 'Test Location',
+                    capacity: 50,
+                    status: 'active'
+                };
+
+                console.log('Adding bus:', testBus);
+                
+                const { data, error } = await supabase
+                    .from('buses')
+                    .insert(testBus)
+                    .select()
+                    .single();
+
+                if (error) throw error;
+                
+                testBusId = data.id;
+                
+                resultDiv.innerHTML = `
+                    <div class="success">✅ Bus added successfully!</div>
+                    <div class="info">Bus ID: ${data.id}</div>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                `;
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="error">❌ Failed to add bus: ${error.message}</div>
+                    <pre>${JSON.stringify(error, null, 2)}</pre>
+                `;
+            }
+        };
+
+        window.testReadBuses = async function() {
+            const resultDiv = document.getElementById('read-result');
+            resultDiv.innerHTML = '<div class="info">🔄 Reading buses...</div>';
+            
+            try {
+                const { data, error } = await supabase
+                    .from('buses')
+                    .select('*')
+                    .order('created_at', { ascending: false });
+
+                if (error) throw error;
+                
+                resultDiv.innerHTML = `
+                    <div class="success">✅ Found ${data.length} buses</div>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                `;
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="error">❌ Failed to read buses: ${error.message}</div>
+                    <pre>${JSON.stringify(error, null, 2)}</pre>
+                `;
+            }
+        };
+
+        window.testUpdateBus = async function() {
+            const resultDiv = document.getElementById('update-result');
+            
+            if (!testBusId) {
+                resultDiv.innerHTML = '<div class="error">❌ No test bus ID. Add a bus first.</div>';
+                return;
+            }
+            
+            resultDiv.innerHTML = '<div class="info">🔄 Updating bus...</div>';
+            
+            try {
+                const updates = {
+                    bus_number: `Updated Test Bus ${Date.now()}`,
+                    current_location: 'Updated Location',
+                    updated_at: new Date().toISOString()
+                };
+
+                const { data, error } = await supabase
+                    .from('buses')
+                    .update(updates)
+                    .eq('id', testBusId)
+                    .select()
+                    .single();
+
+                if (error) throw error;
+                
+                resultDiv.innerHTML = `
+                    <div class="success">✅ Bus updated successfully!</div>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                `;
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="error">❌ Failed to update bus: ${error.message}</div>
+                    <pre>${JSON.stringify(error, null, 2)}</pre>
+                `;
+            }
+        };
+
+        window.testDeleteBus = async function() {
+            const resultDiv = document.getElementById('delete-result');
+            
+            if (!testBusId) {
+                resultDiv.innerHTML = '<div class="error">❌ No test bus ID. Add a bus first.</div>';
+                return;
+            }
+            
+            resultDiv.innerHTML = '<div class="info">🔄 Deleting bus...</div>';
+            
+            try {
+                const { error } = await supabase
+                    .from('buses')
+                    .delete()
+                    .eq('id', testBusId);
+
+                if (error) throw error;
+                
+                resultDiv.innerHTML = `
+                    <div class="success">✅ Bus deleted successfully!</div>
+                    <div class="info">Deleted bus ID: ${testBusId}</div>
+                `;
+                
+                testBusId = null;
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="error">❌ Failed to delete bus: ${error.message}</div>
+                    <pre>${JSON.stringify(error, null, 2)}</pre>
+                `;
+            }
+        };
+
+        window.verifyPersistence = async function() {
+            const resultDiv = document.getElementById('verify-result');
+            resultDiv.innerHTML = '<div class="info">🔄 Verifying data persistence...</div>';
+            
+            try {
+                // Get current count
+                const { data: beforeData, error: beforeError } = await supabase
+                    .from('buses')
+                    .select('*');
+
+                if (beforeError) throw beforeError;
+                
+                const beforeCount = beforeData.length;
+                
+                // Add a test bus
+                const testBus = {
+                    route_number: `VERIFY-${Date.now()}`,
+                    bus_number: `Verify Bus ${Date.now()}`,
+                    current_location: 'Verification Location',
+                    capacity: 40,
+                    status: 'active'
+                };
+
+                const { data: addedBus, error: addError } = await supabase
+                    .from('buses')
+                    .insert(testBus)
+                    .select()
+                    .single();
+
+                if (addError) throw addError;
+                
+                // Wait a moment
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+                // Check if it persists
+                const { data: afterData, error: afterError } = await supabase
+                    .from('buses')
+                    .select('*');
+
+                if (afterError) throw afterError;
+                
+                const afterCount = afterData.length;
+                const persistenceCheck = afterCount === beforeCount + 1;
+                
+                // Clean up
+                await supabase.from('buses').delete().eq('id', addedBus.id);
+                
+                resultDiv.innerHTML = `
+                    <div class="${persistenceCheck ? 'success' : 'error'}">
+                        ${persistenceCheck ? '✅' : '❌'} Persistence Test: ${persistenceCheck ? 'PASSED' : 'FAILED'}
+                    </div>
+                    <div class="info">Before: ${beforeCount} buses</div>
+                    <div class="info">After: ${afterCount} buses</div>
+                    <div class="info">Expected: ${beforeCount + 1} buses</div>
+                    <div class="success">✅ Test bus cleaned up</div>
+                `;
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="error">❌ Persistence verification failed: ${error.message}</div>
+                    <pre>${JSON.stringify(error, null, 2)}</pre>
+                `;
+            }
+        };
+
+        // Initialize on load
+        initSupabase();
+    </script>
+</body>
+</html>
